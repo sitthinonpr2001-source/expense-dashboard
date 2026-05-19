@@ -47,6 +47,9 @@ interface RecurringExpense {
   amount: number;
   recurringDay: number;
   isActive: boolean;
+  startDate?: string;
+  endDate?: string;
+  paidMonths?: Record<string, boolean>;
 }
 
 const DEFAULT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
@@ -65,8 +68,8 @@ export default function Home() {
   ]);
 
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([
-    { id: "r1", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000, recurringDay: 20, isActive: true },
-    { id: "r2", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, recurringDay: 18, isActive: true },
+    { id: "r1", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000, recurringDay: 20, isActive: true, startDate: "2026-01-01", paidMonths: {} },
+    { id: "r2", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, recurringDay: 18, isActive: true, startDate: "2026-01-01", paidMonths: {} },
   ]);
 
   const [categoryColors, setCategoryColors] = useState<CategoryColor[]>([
@@ -102,6 +105,8 @@ export default function Home() {
     category: "",
     amount: "",
     recurringDay: "1",
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: "",
   });
 
   const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", 
@@ -181,18 +186,31 @@ export default function Home() {
     });
 
     const recurringForMonth = recurringExpenses
-      .filter(r => r.isActive)
-      .map(r => ({
-        id: `${r.id}-${year}-${month}`,
-        date: new Date(year, month, r.recurringDay).toISOString().split('T')[0],
-        item: r.item,
-        category: r.category,
-        amount: r.amount,
-        paid: false,
-        paymentType: "full" as const,
-        isRecurring: true,
-        recurringId: r.id,
-      }));
+      .filter(r => {
+        if (!r.isActive) return false;
+        const startDate = r.startDate ? new Date(r.startDate) : null;
+        const endDate = r.endDate ? new Date(r.endDate) : null;
+        const currentMonthDate = new Date(year, month, 1);
+        
+        if (startDate && currentMonthDate < startDate) return false;
+        if (endDate && currentMonthDate > endDate) return false;
+        return true;
+      })
+      .map(r => {
+        const monthKey = `${year}-${month}`;
+        const isPaid = r.paidMonths?.[monthKey] || false;
+        return {
+          id: `${r.id}-${year}-${month}`,
+          date: new Date(year, month, r.recurringDay).toISOString().split('T')[0],
+          item: r.item,
+          category: r.category,
+          amount: r.amount,
+          paid: isPaid,
+          paymentType: "full" as const,
+          isRecurring: true,
+          recurringId: r.id,
+        };
+      });
 
     return [...monthExpenses, ...recurringForMonth];
   };
@@ -294,6 +312,8 @@ export default function Home() {
               category: recurringFormData.category,
               amount: parseFloat(recurringFormData.amount),
               recurringDay: parseInt(recurringFormData.recurringDay),
+              startDate: recurringFormData.startDate,
+              endDate: recurringFormData.endDate || undefined,
             }
           : r
       ));
@@ -306,11 +326,14 @@ export default function Home() {
         amount: parseFloat(recurringFormData.amount),
         recurringDay: parseInt(recurringFormData.recurringDay),
         isActive: true,
+        startDate: recurringFormData.startDate,
+        endDate: recurringFormData.endDate || undefined,
+        paidMonths: {},
       };
       setRecurringExpenses([...recurringExpenses, newRecurring]);
     }
 
-    setRecurringFormData({ item: "", category: "", amount: "", recurringDay: "1" });
+    setRecurringFormData({ item: "", category: "", amount: "", recurringDay: "1", startDate: new Date().toISOString().split('T')[0], endDate: "" });
     setShowRecurringForm(false);
   };
 
@@ -320,6 +343,8 @@ export default function Home() {
       category: recurring.category,
       amount: recurring.amount.toString(),
       recurringDay: recurring.recurringDay.toString(),
+      startDate: recurring.startDate || new Date().toISOString().split('T')[0],
+      endDate: recurring.endDate || "",
     });
     setEditingRecurringId(recurring.id);
     setShowRecurringForm(true);
@@ -738,21 +763,34 @@ export default function Home() {
                         return (
                           <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4">
-                              {!(exp as any).isRecurring && (
-                                <input
-                                  type="checkbox"
-                                  checked={exp.paid}
-                                  onChange={() => {
-                                    if (exp.isInstallment) {
-                                      const originalId = (exp as any).expenseId;
-                                      setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
-                                    } else {
-                                      setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
-                                    }
-                                  }}
-                                  className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
-                                />
-                              )}
+                            <input
+                              type="checkbox"
+                              checked={exp.paid}
+                              onChange={() => {
+                                if ((exp as any).isRecurring) {
+                                  const year = currentDate.getFullYear();
+                                  const month = currentDate.getMonth();
+                                  const monthKey = `${year}-${month}`;
+                                  setRecurringExpenses(recurringExpenses.map(r => 
+                                    r.id === (exp as any).recurringId
+                                      ? {
+                                          ...r,
+                                          paidMonths: {
+                                            ...r.paidMonths,
+                                            [monthKey]: !r.paidMonths?.[monthKey],
+                                          },
+                                        }
+                                      : r
+                                  ));
+                                } else if (exp.isInstallment) {
+                                  const originalId = (exp as any).expenseId;
+                                  setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
+                                } else {
+                                  setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
+                                }
+                              }}
+                              className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                            />
                             </td>
                             <td className="px-6 py-4 text-sm text-slate-600">{('originalDate' in exp ? (exp as any).originalDate : (exp as any).date) || (exp as any).date}</td>
                             <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
@@ -846,7 +884,7 @@ export default function Home() {
               onClick={() => {
                 setShowRecurringForm(!showRecurringForm);
                 setEditingRecurringId(null);
-                setRecurringFormData({ item: "", category: "", amount: "", recurringDay: "1" });
+                setRecurringFormData({ item: "", category: "", amount: "", recurringDay: "1", startDate: new Date().toISOString().split('T')[0], endDate: "" });
               }}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
@@ -859,7 +897,7 @@ export default function Home() {
               <h3 className="text-sm font-semibold mb-4">
                 {editingRecurringId ? "แก้ไขรายจ่ายประจำเดือน" : "เพิ่มรายจ่ายประจำเดือนใหม่"}
               </h3>
-              <form onSubmit={handleAddRecurring} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+              <form onSubmit={handleAddRecurring} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">รายการ</label>
                   <Input
@@ -894,7 +932,7 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">วันที่ในเดือน</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">วันที่</label>
                   <Input
                     type="number"
                     min="1"
@@ -903,7 +941,23 @@ export default function Home() {
                     onChange={(e) => setRecurringFormData({ ...recurringFormData, recurringDay: e.target.value })}
                   />
                 </div>
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">เริ่ม</label>
+                  <Input
+                    type="date"
+                    value={recurringFormData.startDate}
+                    onChange={(e) => setRecurringFormData({ ...recurringFormData, startDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">สิ้นสุด</label>
+                  <Input
+                    type="date"
+                    value={recurringFormData.endDate}
+                    onChange={(e) => setRecurringFormData({ ...recurringFormData, endDate: e.target.value })}
+                  />
+                </div>
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 lg:col-span-1">
                   {editingRecurringId ? "อัปเดต" : "บันทึก"}
                 </Button>
               </form>
@@ -917,7 +971,11 @@ export default function Home() {
                   <div key={recurring.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                     <div className="flex-1">
                       <p className="font-medium text-slate-900">{recurring.item}</p>
-                      <p className="text-sm text-slate-500">{recurring.category} • วันที่ {recurring.recurringDay} ของเดือน</p>
+                      <p className="text-sm text-slate-500">
+                        {recurring.category} • วันที่ {recurring.recurringDay}
+                        {recurring.startDate && ` • เริ่ม: ${recurring.startDate}`}
+                        {recurring.endDate && ` • สิ้นสุด: ${recurring.endDate}`}
+                      </p>
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="font-bold text-slate-900">฿{recurring.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</p>
