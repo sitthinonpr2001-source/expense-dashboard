@@ -16,33 +16,121 @@ interface Expense {
   category: string;
   amount: number;
   paid: boolean;
+  paymentType: "full" | "installment";
+  installmentMonths?: number;
 }
 
 export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expenses, setExpenses] = useState<Expense[]>([
-    { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true },
-    { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false },
-    { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true },
+    { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full" },
+    { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false, paymentType: "full" },
+    { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true, paymentType: "full" },
   ]);
+  
   const [filterSearch, setFilterSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [sortData, setSortData] = useState("date-desc");
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    item: "",
+    category: "",
+    amount: "",
+    paymentType: "full" as "full" | "installment",
+    installmentMonths: 3,
+  });
 
   const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", 
                       "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
   const monthDisplay = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear() + 543}`;
 
+  // Get all categories
+  const allCategories = Array.from(new Set(expenses.map(e => e.category)));
+
   const changeMonth = (offset: number) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
+  };
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.item || !formData.category || !formData.amount) {
+      alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+      return;
+    }
+
+    if (editingId) {
+      // Update existing
+      setExpenses(expenses.map(exp => 
+        exp.id === editingId 
+          ? {
+              ...exp,
+              date: formData.date,
+              item: formData.item,
+              category: formData.category,
+              amount: parseFloat(formData.amount),
+              paymentType: formData.paymentType,
+              installmentMonths: formData.paymentType === "installment" ? formData.installmentMonths : undefined,
+            }
+          : exp
+      ));
+      setEditingId(null);
+    } else {
+      // Add new
+      const newExpense: Expense = {
+        id: Date.now().toString(),
+        date: formData.date,
+        item: formData.item,
+        category: formData.category,
+        amount: parseFloat(formData.amount),
+        paid: false,
+        paymentType: formData.paymentType,
+        installmentMonths: formData.paymentType === "installment" ? formData.installmentMonths : undefined,
+      };
+      setExpenses([newExpense, ...expenses]);
+    }
+
+    // Reset form
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      item: "",
+      category: "",
+      amount: "",
+      paymentType: "full",
+      installmentMonths: 3,
+    });
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setFormData({
+      date: expense.date,
+      item: expense.item,
+      category: expense.category,
+      amount: expense.amount.toString(),
+      paymentType: expense.paymentType,
+      installmentMonths: expense.installmentMonths || 3,
+    });
+    setEditingId(expense.id);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("ยืนยันการลบรายการนี้?")) {
+      setExpenses(expenses.filter(exp => exp.id !== id));
+    }
   };
 
   // Filter and sort expenses
   let filteredExpenses = expenses.filter(exp => {
     const matchesSearch = exp.item.toLowerCase().includes(filterSearch.toLowerCase());
     const matchesStatus = filterStatus === "all" || (filterStatus === "paid" ? exp.paid : !exp.paid);
-    return matchesSearch && matchesStatus;
+    const matchesCategory = filterCategory === "all" || exp.category === filterCategory;
+    return matchesSearch && matchesStatus && matchesCategory;
   });
 
   if (sortData === "date-asc") {
@@ -124,6 +212,112 @@ export default function Home() {
           </Card>
         </div>
 
+        {/* Form Card */}
+        <Card className="p-8 bg-white">
+          <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+            <span className="text-indigo-500">+</span>
+            {editingId ? "แก้ไขรายการ" : "เพิ่มรายการใหม่"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+            <div className="lg:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">วันที่</label>
+              <Input
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                required
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">รายการ</label>
+              <Input
+                type="text"
+                placeholder="เช่น ค่าโฆษณา, ค่าเช่าที่"
+                value={formData.item}
+                onChange={(e) => setFormData({ ...formData, item: e.target.value })}
+                required
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">หมวดหมู่</label>
+              <Input
+                type="text"
+                placeholder="พิมพ์หมวดหมู่"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                list="categoryList"
+                required
+              />
+              <datalist id="categoryList">
+                {allCategories.map(cat => <option key={cat} value={cat} />)}
+              </datalist>
+            </div>
+            <div className="lg:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">รูปแบบการจ่าย</label>
+              <Select value={formData.paymentType} onValueChange={(value) => setFormData({ ...formData, paymentType: value as "full" | "installment" })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">เต็มจำนวน</SelectItem>
+                  <SelectItem value="installment">ผ่อนชำระ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formData.paymentType === "installment" && (
+              <div className="lg:col-span-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">จำนวนเดือน</label>
+                <Input
+                  type="number"
+                  min="2"
+                  max="60"
+                  value={formData.installmentMonths}
+                  onChange={(e) => setFormData({ ...formData, installmentMonths: parseInt(e.target.value) })}
+                />
+              </div>
+            )}
+            <div className={formData.paymentType === "installment" ? "lg:col-span-1" : ""}>
+              <label className="block text-sm font-medium text-slate-700 mb-1">จำนวนเงิน</label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                required
+              />
+            </div>
+            <div className={formData.paymentType === "installment" ? "lg:col-span-1" : ""}>
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
+                {editingId ? "อัปเดต" : "บันทึก"}
+              </Button>
+            </div>
+            {editingId && (
+              <div className={formData.paymentType === "installment" ? "lg:col-span-1" : ""}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setEditingId(null);
+                    setFormData({
+                      date: new Date().toISOString().split('T')[0],
+                      item: "",
+                      category: "",
+                      amount: "",
+                      paymentType: "full",
+                      installmentMonths: 3,
+                    });
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+              </div>
+            )}
+          </form>
+        </Card>
+
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Chart */}
@@ -143,10 +337,9 @@ export default function Home() {
                   placeholder="ค้นหารายการ..."
                   value={filterSearch}
                   onChange={(e) => setFilterSearch(e.target.value)}
-                  className="w-full"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
                   <SelectTrigger className="w-[140px]">
                     <SelectValue />
@@ -155,6 +348,17 @@ export default function Home() {
                     <SelectItem value="all">ทุกสถานะ</SelectItem>
                     <SelectItem value="paid">จ่ายแล้ว</SelectItem>
                     <SelectItem value="pending">ค้างชำระ</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
+                    {allCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={sortData} onValueChange={setSortData}>
@@ -200,16 +404,24 @@ export default function Home() {
                       <td className="px-6 py-4 text-sm text-slate-600">{exp.date}</td>
                       <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
                       <td className="px-6 py-4 text-sm text-slate-600">{exp.category}</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900">฿{exp.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900">
+                        ฿{exp.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                        {exp.paymentType === "installment" && <span className="text-xs text-slate-500 block">({exp.installmentMonths} เดือน)</span>}
+                      </td>
                       <td className="px-6 py-4 text-center flex gap-2 justify-center">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                          onClick={() => handleEdit(exp)}
+                        >
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
-                          onClick={() => setExpenses(expenses.filter(e => e.id !== exp.id))}
+                          onClick={() => handleDelete(exp.id)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
