@@ -1,9 +1,11 @@
 import { useState } from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, BarChart3, Trash2, Edit2, Palette } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart3, Trash2, Edit2, Palette, TrendingUp } from "lucide-react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 
@@ -54,7 +56,12 @@ interface RecurringExpense {
 
 const DEFAULT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
 
-export default function Home() {
+interface HomeProps {
+  onDataChange?: (expenses: Expense[], recurringExpenses: RecurringExpense[]) => void;
+}
+
+export default function Home({ onDataChange }: HomeProps) {
+  const [, setLocation] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expenses, setExpenses] = useState<Expense[]>([
     { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full", amountType: "total" },
@@ -352,9 +359,15 @@ export default function Home() {
 
   const handleDeleteRecurring = (id: string) => {
     if (confirm("ยืนยันการลบรายจ่ายประจำเดือนนี้?")) {
-      setRecurringExpenses(recurringExpenses.filter(r => r.id !== id));
+      const updated = recurringExpenses.filter(r => r.id !== id);
+      setRecurringExpenses(updated);
+      if (onDataChange) onDataChange(expenses, updated);
     }
   };
+
+  React.useEffect(() => {
+    if (onDataChange) onDataChange(expenses, recurringExpenses);
+  }, [expenses, recurringExpenses, onDataChange]);
 
   const handleToggleRecurring = (id: string) => {
     setRecurringExpenses(recurringExpenses.map(r => 
@@ -449,6 +462,13 @@ export default function Home() {
                 <p className="text-slate-500 text-sm">จัดการการเงินของคุณอย่างมืออาชีพ</p>
               </div>
             </div>
+            <Button
+              onClick={() => setLocation("/yearly")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
+            >
+              <TrendingUp className="w-4 h-4" />
+              สรุปรายปี
+            </Button>
           </div>
         </div>
       </header>
