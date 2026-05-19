@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, BarChart3, Trash2, Edit2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart3, Trash2, Edit2, Palette } from "lucide-react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 
@@ -18,7 +18,7 @@ interface Expense {
   paid: boolean;
   paymentType: "full" | "installment";
   installmentMonths?: number;
-  amountType?: "total" | "monthly"; // total = ใส่จำนวนเงินทั้งหมด, monthly = ใส่ต่องวด
+  amountType?: "total" | "monthly";
 }
 
 interface InstallmentRow {
@@ -33,6 +33,13 @@ interface InstallmentRow {
   expenseId: string;
 }
 
+interface CategoryColor {
+  category: string;
+  color: string;
+}
+
+const DEFAULT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
 export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expenses, setExpenses] = useState<Expense[]>([
@@ -46,11 +53,21 @@ export default function Home() {
     { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment", installmentMonths: 3, amountType: "total" },
   ]);
   
+  const [categoryColors, setCategoryColors] = useState<CategoryColor[]>([
+    { category: "ยูทิลิตี้", color: "#6366f1" },
+    { category: "ความบันเทิง", color: "#10b981" },
+    { category: "ที่พัก", color: "#f59e0b" },
+    { category: "อาหาร", color: "#ef4444" },
+    { category: "เดินทาง", color: "#8b5cf6" },
+    { category: "อุปกรณ์", color: "#ec4899" },
+  ]);
+
   const [filterSearch, setFilterSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [sortData, setSortData] = useState("date-desc");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showColorEditor, setShowColorEditor] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -71,6 +88,23 @@ export default function Home() {
   // Get all categories
   const allCategories = Array.from(new Set(expenses.map(e => e.category)));
 
+  // Get color for category
+  const getCategoryColor = (category: string): string => {
+    const found = categoryColors.find(cc => cc.category === category);
+    if (found) return found.color;
+    
+    // Auto-assign color if not found
+    const newColor = DEFAULT_COLORS[categoryColors.length % DEFAULT_COLORS.length];
+    setCategoryColors([...categoryColors, { category, color: newColor }]);
+    return newColor;
+  };
+
+  const updateCategoryColor = (category: string, color: string) => {
+    setCategoryColors(categoryColors.map(cc => 
+      cc.category === category ? { ...cc, color } : cc
+    ));
+  };
+
   const changeMonth = (offset: number) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
   };
@@ -87,7 +121,6 @@ export default function Home() {
         const startYear = startDate.getFullYear();
         const startMonth = startDate.getMonth();
 
-        // Calculate which month this installment is for
         for (let i = 0; i < exp.installmentMonths; i++) {
           const monthDate = new Date(startYear, startMonth + i, 1);
           
@@ -121,7 +154,7 @@ export default function Home() {
     const month = currentDate.getMonth();
     
     return expenses.filter(exp => {
-      if (exp.paymentType === "installment") return false; // Exclude installments, they're handled separately
+      if (exp.paymentType === "installment") return false;
       
       const expDate = new Date(exp.date);
       return expDate.getFullYear() === year && expDate.getMonth() === month;
@@ -138,7 +171,6 @@ export default function Home() {
     }
 
     if (editingId) {
-      // Update existing
       setExpenses(expenses.map(exp => 
         exp.id === editingId 
           ? {
@@ -155,7 +187,6 @@ export default function Home() {
       ));
       setEditingId(null);
     } else {
-      // Add new
       const newExpense: Expense = {
         id: Date.now().toString(),
         date: formData.date,
@@ -168,9 +199,13 @@ export default function Home() {
         amountType: formData.paymentType === "installment" ? formData.amountType : "total",
       };
       setExpenses([newExpense, ...expenses]);
+      
+      // Auto-assign color if category is new
+      if (!categoryColors.find(cc => cc.category === formData.category)) {
+        getCategoryColor(formData.category);
+      }
     }
 
-    // Reset form
     setFormData({
       date: new Date().toISOString().split('T')[0],
       item: "",
@@ -267,11 +302,13 @@ export default function Home() {
     categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + (exp.monthlyAmount || exp.amount);
   });
 
+  const chartColors = Object.keys(categoryTotals).map(cat => getCategoryColor(cat));
+
   const chartData = {
     labels: Object.keys(categoryTotals),
     datasets: [{
       data: Object.values(categoryTotals),
-      backgroundColor: ["#6366f1", "#10b981", "#f59e0b", "#94a3b8", "#8b5cf6"],
+      backgroundColor: chartColors,
       borderWidth: 0,
       hoverOffset: 4,
     }],
@@ -448,17 +485,64 @@ export default function Home() {
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Chart */}
-          <Card className="p-6 bg-white flex flex-col items-center justify-center">
-            <h3 className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-widest">สัดส่วนรายจ่าย</h3>
-            <div className="w-full max-w-[250px]">
-              {Object.keys(categoryTotals).length > 0 ? (
-                <Doughnut data={chartData} options={{ plugins: { legend: { display: false } }, cutout: "70%" }} />
-              ) : (
-                <div className="text-center text-slate-400 py-8">ไม่มีข้อมูลในเดือนนี้</div>
-              )}
-            </div>
-          </Card>
+          {/* Chart & Color Editor */}
+          <div className="space-y-4">
+            <Card className="p-6 bg-white flex flex-col items-center justify-center">
+              <h3 className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-widest">สัดส่วนรายจ่าย</h3>
+              <div className="w-full max-w-[250px]">
+                {Object.keys(categoryTotals).length > 0 ? (
+                  <Doughnut data={chartData} options={{ plugins: { legend: { display: false } }, cutout: "70%" }} />
+                ) : (
+                  <div className="text-center text-slate-400 py-8">ไม่มีข้อมูลในเดือนนี้</div>
+                )}
+              </div>
+            </Card>
+
+            {/* Color Editor */}
+            <Card className="p-6 bg-white">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                  <Palette className="w-4 h-4" />
+                  สีหมวดหมู่
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowColorEditor(!showColorEditor)}
+                  className="text-xs"
+                >
+                  {showColorEditor ? "ปิด" : "แก้ไข"}
+                </Button>
+              </div>
+              
+              <div className="space-y-3">
+                {categoryColors.map(cc => (
+                  <div key={cc.category} className="flex items-center gap-3">
+                    {showColorEditor ? (
+                      <>
+                        <input
+                          type="color"
+                          value={cc.color}
+                          onChange={(e) => updateCategoryColor(cc.category, e.target.value)}
+                          className="w-10 h-10 rounded cursor-pointer border border-slate-200"
+                        />
+                        <span className="text-sm text-slate-700 flex-1">{cc.category}</span>
+                        <span className="text-xs text-slate-400">{cc.color}</span>
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          className="w-4 h-4 rounded-full border border-slate-200"
+                          style={{ backgroundColor: cc.color }}
+                        />
+                        <span className="text-sm text-slate-700">{cc.category}</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
 
           {/* Table */}
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
@@ -522,61 +606,71 @@ export default function Home() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredExpenses.length > 0 ? (
-                    filteredExpenses.map(exp => (
-                      <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <input
-                            type="checkbox"
-                            checked={exp.paid}
-                            onChange={() => {
-                              if (exp.isInstallment) {
-                                // For installments, mark the original expense as paid
-                                const originalId = (exp as any).expenseId;
-                                setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
-                              } else {
-                                setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
-                              }
-                            }}
-                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{('originalDate' in exp ? (exp as any).originalDate : (exp as any).date) || (exp as any).date}</td>
-                        <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{exp.category}</td>
-                        <td className="px-6 py-4 text-right font-bold text-slate-900">
-                          ฿{(exp.monthlyAmount || exp.amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                          {exp.isInstallment && (
-                            <span className="text-xs text-slate-500 block">
-                              งวด {(exp as any).currentMonth}/{(exp as any).totalMonths}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center flex gap-2 justify-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
-                            onClick={() => {
-                              if (exp.isInstallment) {
-                                handleEditInstallment(exp as any);
-                              } else {
-                                handleEdit(exp as Expense);
-                              }
-                            }}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
-                            onClick={() => handleDelete(exp.isInstallment ? (exp as any).expenseId : exp.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredExpenses.map(exp => {
+                      const categoryColor = getCategoryColor(exp.category);
+                      return (
+                        <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={exp.paid}
+                              onChange={() => {
+                                if (exp.isInstallment) {
+                                  const originalId = (exp as any).expenseId;
+                                  setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
+                                } else {
+                                  setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
+                                }
+                              }}
+                              className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">{('originalDate' in exp ? (exp as any).originalDate : (exp as any).date) || (exp as any).date}</td>
+                          <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full border border-slate-200"
+                                style={{ backgroundColor: categoryColor }}
+                              />
+                              <span className="text-sm text-slate-600">{exp.category}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right font-bold text-slate-900">
+                            ฿{(exp.monthlyAmount || exp.amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                            {exp.isInstallment && (
+                              <span className="text-xs text-slate-500 block">
+                                งวด {(exp as any).currentMonth}/{(exp as any).totalMonths}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-center flex gap-2 justify-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                              onClick={() => {
+                                if (exp.isInstallment) {
+                                  handleEditInstallment(exp as any);
+                                } else {
+                                  handleEdit(exp as Expense);
+                                }
+                              }}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                              onClick={() => handleDelete(exp.isInstallment ? (exp as any).expenseId : exp.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
