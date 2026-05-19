@@ -18,6 +18,7 @@ interface Expense {
   paid: boolean;
   paymentType: "full" | "installment";
   installmentMonths?: number;
+  amountType?: "total" | "monthly"; // total = ใส่จำนวนเงินทั้งหมด, monthly = ใส่ต่องวด
 }
 
 interface InstallmentRow {
@@ -29,19 +30,20 @@ interface InstallmentRow {
   totalMonths: number;
   paid: boolean;
   originalDate: string;
+  expenseId: string;
 }
 
 export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expenses, setExpenses] = useState<Expense[]>([
-    { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full" },
-    { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false, paymentType: "full" },
-    { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true, paymentType: "full" },
-    { id: "4", date: "2026-04-20", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000.0, paid: true, paymentType: "full" },
-    { id: "5", date: "2026-04-15", item: "ค่าอาหาร", category: "อาหาร", amount: 1200.0, paid: true, paymentType: "full" },
-    { id: "6", date: "2026-04-10", item: "ค่าเดินทาง", category: "เดินทาง", amount: 500.0, paid: false, paymentType: "full" },
-    { id: "7", date: "2026-05-01", item: "ซื้อโน้ตบุ๊ก", category: "อุปกรณ์", amount: 30000.0, paid: false, paymentType: "installment", installmentMonths: 6 },
-    { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment", installmentMonths: 3 },
+    { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full", amountType: "total" },
+    { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false, paymentType: "full", amountType: "total" },
+    { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true, paymentType: "full", amountType: "total" },
+    { id: "4", date: "2026-04-20", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000.0, paid: true, paymentType: "full", amountType: "total" },
+    { id: "5", date: "2026-04-15", item: "ค่าอาหาร", category: "อาหาร", amount: 1200.0, paid: true, paymentType: "full", amountType: "total" },
+    { id: "6", date: "2026-04-10", item: "ค่าเดินทาง", category: "เดินทาง", amount: 500.0, paid: false, paymentType: "full", amountType: "total" },
+    { id: "7", date: "2026-05-01", item: "ซื้อโน้ตบุ๊ก", category: "อุปกรณ์", amount: 30000.0, paid: false, paymentType: "installment", installmentMonths: 6, amountType: "total" },
+    { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment", installmentMonths: 3, amountType: "total" },
   ]);
   
   const [filterSearch, setFilterSearch] = useState("");
@@ -58,6 +60,7 @@ export default function Home() {
     amount: "",
     paymentType: "full" as "full" | "installment",
     installmentMonths: 3,
+    amountType: "total" as "total" | "monthly",
   });
 
   const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", 
@@ -89,15 +92,20 @@ export default function Home() {
           const monthDate = new Date(startYear, startMonth + i, 1);
           
           if (monthDate.getFullYear() === targetYear && monthDate.getMonth() === targetMonth) {
+            const monthlyAmount = exp.amountType === "total" 
+              ? exp.amount / exp.installmentMonths 
+              : exp.amount;
+            
             rows.push({
               id: `${exp.id}-inst-${i}`,
               item: exp.item,
               category: exp.category,
-              monthlyAmount: exp.amount / exp.installmentMonths,
+              monthlyAmount: monthlyAmount,
               currentMonth: i + 1,
               totalMonths: exp.installmentMonths,
               paid: exp.paid,
               originalDate: exp.date,
+              expenseId: exp.id,
             });
           }
         }
@@ -141,6 +149,7 @@ export default function Home() {
               amount: parseFloat(formData.amount),
               paymentType: formData.paymentType,
               installmentMonths: formData.paymentType === "installment" ? formData.installmentMonths : undefined,
+              amountType: formData.paymentType === "installment" ? formData.amountType : "total",
             }
           : exp
       ));
@@ -156,6 +165,7 @@ export default function Home() {
         paid: false,
         paymentType: formData.paymentType,
         installmentMonths: formData.paymentType === "installment" ? formData.installmentMonths : undefined,
+        amountType: formData.paymentType === "installment" ? formData.amountType : "total",
       };
       setExpenses([newExpense, ...expenses]);
     }
@@ -168,6 +178,7 @@ export default function Home() {
       amount: "",
       paymentType: "full",
       installmentMonths: 3,
+      amountType: "total",
     });
   };
 
@@ -179,8 +190,16 @@ export default function Home() {
       amount: expense.amount.toString(),
       paymentType: expense.paymentType,
       installmentMonths: expense.installmentMonths || 3,
+      amountType: expense.amountType || "total",
     });
     setEditingId(expense.id);
+  };
+
+  const handleEditInstallment = (row: InstallmentRow) => {
+    const expense = expenses.find(e => e.id === row.expenseId);
+    if (expense) {
+      handleEdit(expense);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -201,6 +220,7 @@ export default function Home() {
       monthlyAmount: exp.amount,
       currentMonth: 0,
       totalMonths: 0,
+      expenseId: exp.id,
     })),
     ...installmentRows.map(row => ({
       ...row,
@@ -358,18 +378,32 @@ export default function Home() {
               </Select>
             </div>
             {formData.paymentType === "installment" && (
-              <div className="lg:col-span-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">จำนวนเดือน</label>
-                <Input
-                  type="number"
-                  min="2"
-                  max="60"
-                  value={formData.installmentMonths}
-                  onChange={(e) => setFormData({ ...formData, installmentMonths: parseInt(e.target.value) })}
-                />
-              </div>
+              <>
+                <div className="lg:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">จำนวนเดือน</label>
+                  <Input
+                    type="number"
+                    min="2"
+                    max="60"
+                    value={formData.installmentMonths}
+                    onChange={(e) => setFormData({ ...formData, installmentMonths: parseInt(e.target.value) })}
+                  />
+                </div>
+                <div className="lg:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">ประเภทจำนวนเงิน</label>
+                  <Select value={formData.amountType} onValueChange={(value) => setFormData({ ...formData, amountType: value as "total" | "monthly" })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="total">ทั้งหมด</SelectItem>
+                      <SelectItem value="monthly">ต่องวด</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
-            <div className={formData.paymentType === "installment" ? "lg:col-span-1" : ""}>
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">จำนวนเงิน</label>
               <Input
                 type="number"
@@ -381,13 +415,13 @@ export default function Home() {
                 required
               />
             </div>
-            <div className={formData.paymentType === "installment" ? "lg:col-span-1" : ""}>
+            <div>
               <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
                 {editingId ? "อัปเดต" : "บันทึก"}
               </Button>
             </div>
             {editingId && (
-              <div className={formData.paymentType === "installment" ? "lg:col-span-1" : ""}>
+              <div>
                 <Button
                   type="button"
                   variant="outline"
@@ -401,6 +435,7 @@ export default function Home() {
                       amount: "",
                       paymentType: "full",
                       installmentMonths: 3,
+                      amountType: "total",
                     });
                   }}
                 >
@@ -496,7 +531,7 @@ export default function Home() {
                             onChange={() => {
                               if (exp.isInstallment) {
                                 // For installments, mark the original expense as paid
-                                const originalId = exp.id.split('-inst-')[0];
+                                const originalId = (exp as any).expenseId;
                                 setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
                               } else {
                                 setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
@@ -512,34 +547,33 @@ export default function Home() {
                           ฿{(exp.monthlyAmount || exp.amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                           {exp.isInstallment && (
                             <span className="text-xs text-slate-500 block">
-                              งวด {exp.currentMonth}/{exp.totalMonths}
+                              งวด {(exp as any).currentMonth}/{(exp as any).totalMonths}
                             </span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center flex gap-2 justify-center">
-                          {!exp.isInstallment && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
-                                onClick={() => handleEdit(exp as Expense)}
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
-                                onClick={() => handleDelete(exp.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                          {exp.isInstallment && (
-                            <span className="text-xs text-slate-400">ไม่สามารถแก้ไข</span>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                            onClick={() => {
+                              if (exp.isInstallment) {
+                                handleEditInstallment(exp as any);
+                              } else {
+                                handleEdit(exp as Expense);
+                              }
+                            }}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                            onClick={() => handleDelete(exp.isInstallment ? (exp as any).expenseId : exp.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </td>
                       </tr>
                     ))
