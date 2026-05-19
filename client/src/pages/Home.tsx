@@ -304,13 +304,13 @@ export default function Home() {
 
   const chartColors = Object.keys(categoryTotals).map(cat => getCategoryColor(cat));
   const chartTotal = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
-  const chartLabelsWithPercent = Object.keys(categoryTotals).map(cat => {
-    const percent = ((categoryTotals[cat] / chartTotal) * 100).toFixed(1);
-    return `${cat} ${percent}%`;
+  const categoryPercentages: Record<string, number> = {};
+  Object.keys(categoryTotals).forEach(cat => {
+    categoryPercentages[cat] = parseFloat(((categoryTotals[cat] / chartTotal) * 100).toFixed(1));
   });
 
   const chartData = {
-    labels: chartLabelsWithPercent,
+    labels: Object.keys(categoryTotals),
     datasets: [{
       data: Object.values(categoryTotals),
       backgroundColor: chartColors,
@@ -490,20 +490,38 @@ export default function Home() {
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Chart & Color Editor */}
+          {/* Chart, Percentage & Color Editor */}
           <div className="space-y-4">
-            <Card className="p-6 bg-white flex flex-col items-center justify-center">
+            <Card className="p-6 bg-white">
               <h3 className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-widest">สัดส่วนรายจ่าย</h3>
-              <div className="w-full max-w-[250px]">
-                {Object.keys(categoryTotals).length > 0 ? (
-                  <Doughnut data={chartData} options={{ plugins: { legend: { display: false } }, cutout: "70%" }} />
-                ) : (
-                  <div className="text-center text-slate-400 py-8">ไม่มีข้อมูลในเดือนนี้</div>
+              <div className="space-y-4">
+                <div className="w-full max-w-[250px] mx-auto">
+                  {Object.keys(categoryTotals).length > 0 ? (
+                    <Doughnut data={chartData} options={{ plugins: { legend: { display: false } }, cutout: "70%" }} />
+                  ) : (
+                    <div className="text-center text-slate-400 py-8">ไม่มีข้อมูลในเดือนนี้</div>
+                  )}
+                </div>
+                {Object.keys(categoryTotals).length > 0 && (
+                  <div className="space-y-2 pt-4 border-t border-slate-100">
+                    {Object.keys(categoryTotals).map((cat, idx) => (
+                      <div key={cat} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: chartColors[idx] }}
+                          />
+                          <span className="text-sm text-slate-700">{cat}</span>
+                        </div>
+                        <span className="text-lg font-bold text-slate-900">{categoryPercentages[cat]}%</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </Card>
 
-            {/* Color Editor */}
+            {/* Color Editor & Legend */}
             <Card className="p-6 bg-white">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -550,7 +568,33 @@ export default function Home() {
           </div>
 
           {/* Table */}
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+          <div className="lg:col-span-2 space-y-4">
+            {/* Percentage Breakdown */}
+            {Object.keys(categoryTotals).length > 0 && (
+              <Card className="p-6 bg-white">
+                <h3 className="text-sm font-semibold text-slate-900 mb-4">รายละเอียดเปอร์เซ็นต์</h3>
+                <div className="space-y-3">
+                  {Object.keys(categoryTotals).map((cat, idx) => (
+                    <div key={cat} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: chartColors[idx] }}
+                        />
+                        <span className="text-sm text-slate-700">{cat}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-slate-900">{categoryPercentages[cat]}%</div>
+                        <div className="text-xs text-slate-500">฿{categoryTotals[cat].toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
             {/* Filters */}
             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-4 items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-[200px]">
@@ -686,6 +730,7 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
+          </div>
           </div>
         </div>
       </main>
