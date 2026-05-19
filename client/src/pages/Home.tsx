@@ -26,6 +26,9 @@ export default function Home() {
     { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full" },
     { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false, paymentType: "full" },
     { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true, paymentType: "full" },
+    { id: "4", date: "2026-04-20", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000.0, paid: true, paymentType: "full" },
+    { id: "5", date: "2026-04-15", item: "ค่าอาหาร", category: "อาหาร", amount: 1200.0, paid: true, paymentType: "full" },
+    { id: "6", date: "2026-04-10", item: "ค่าเดินทาง", category: "เดินทาง", amount: 500.0, paid: false, paymentType: "full" },
   ]);
   
   const [filterSearch, setFilterSearch] = useState("");
@@ -54,6 +57,17 @@ export default function Home() {
 
   const changeMonth = (offset: number) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
+  };
+
+  // Filter expenses by current month
+  const getExpensesForMonth = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    return expenses.filter(exp => {
+      const expDate = new Date(exp.date);
+      return expDate.getFullYear() === year && expDate.getMonth() === month;
+    });
   };
 
   // Handle form submission
@@ -125,8 +139,11 @@ export default function Home() {
     }
   };
 
+  // Get expenses for current month
+  const monthExpenses = getExpensesForMonth();
+
   // Filter and sort expenses
-  let filteredExpenses = expenses.filter(exp => {
+  let filteredExpenses = monthExpenses.filter(exp => {
     const matchesSearch = exp.item.toLowerCase().includes(filterSearch.toLowerCase());
     const matchesStatus = filterStatus === "all" || (filterStatus === "paid" ? exp.paid : !exp.paid);
     const matchesCategory = filterCategory === "all" || exp.category === filterCategory;
@@ -143,14 +160,14 @@ export default function Home() {
     filteredExpenses.sort((a, b) => a.amount - b.amount);
   }
 
-  // Calculate summaries
-  const totalExpense = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const paidExpense = expenses.filter(exp => exp.paid).reduce((sum, exp) => sum + exp.amount, 0);
+  // Calculate summaries for current month
+  const totalExpense = monthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const paidExpense = monthExpenses.filter(exp => exp.paid).reduce((sum, exp) => sum + exp.amount, 0);
   const pendingExpense = totalExpense - paidExpense;
 
-  // Chart data
+  // Chart data for current month
   const categoryTotals: Record<string, number> = {};
-  expenses.forEach(exp => {
+  monthExpenses.forEach(exp => {
     categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
   });
 
@@ -324,7 +341,11 @@ export default function Home() {
           <Card className="p-6 bg-white flex flex-col items-center justify-center">
             <h3 className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-widest">สัดส่วนรายจ่าย</h3>
             <div className="w-full max-w-[250px]">
-              <Doughnut data={chartData} options={{ plugins: { legend: { display: false } }, cutout: "70%" }} />
+              {Object.keys(categoryTotals).length > 0 ? (
+                <Doughnut data={chartData} options={{ plugins: { legend: { display: false } }, cutout: "70%" }} />
+              ) : (
+                <div className="text-center text-slate-400 py-8">ไม่มีข้อมูลในเดือนนี้</div>
+              )}
             </div>
           </Card>
 
@@ -389,45 +410,53 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredExpenses.map(exp => (
-                    <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <input
-                          type="checkbox"
-                          checked={exp.paid}
-                          onChange={() => {
-                            setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
-                          }}
-                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{exp.date}</td>
-                      <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{exp.category}</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900">
-                        ฿{exp.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                        {exp.paymentType === "installment" && <span className="text-xs text-slate-500 block">({exp.installmentMonths} เดือน)</span>}
-                      </td>
-                      <td className="px-6 py-4 text-center flex gap-2 justify-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
-                          onClick={() => handleEdit(exp)}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
-                          onClick={() => handleDelete(exp.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                  {filteredExpenses.length > 0 ? (
+                    filteredExpenses.map(exp => (
+                      <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <input
+                            type="checkbox"
+                            checked={exp.paid}
+                            onChange={() => {
+                              setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
+                            }}
+                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{exp.date}</td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{exp.category}</td>
+                        <td className="px-6 py-4 text-right font-bold text-slate-900">
+                          ฿{exp.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                          {exp.paymentType === "installment" && <span className="text-xs text-slate-500 block">({exp.installmentMonths} เดือน)</span>}
+                        </td>
+                        <td className="px-6 py-4 text-center flex gap-2 justify-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                            onClick={() => handleEdit(exp)}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                            onClick={() => handleDelete(exp.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                        ไม่มีข้อมูลในเดือนนี้
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
