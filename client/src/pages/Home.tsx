@@ -20,6 +20,17 @@ interface Expense {
   installmentMonths?: number;
 }
 
+interface InstallmentRow {
+  id: string;
+  item: string;
+  category: string;
+  monthlyAmount: number;
+  currentMonth: number;
+  totalMonths: number;
+  paid: boolean;
+  originalDate: string;
+}
+
 export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expenses, setExpenses] = useState<Expense[]>([
@@ -29,6 +40,8 @@ export default function Home() {
     { id: "4", date: "2026-04-20", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000.0, paid: true, paymentType: "full" },
     { id: "5", date: "2026-04-15", item: "ค่าอาหาร", category: "อาหาร", amount: 1200.0, paid: true, paymentType: "full" },
     { id: "6", date: "2026-04-10", item: "ค่าเดินทาง", category: "เดินทาง", amount: 500.0, paid: false, paymentType: "full" },
+    { id: "7", date: "2026-05-01", item: "ซื้อโน้ตบุ๊ก", category: "อุปกรณ์", amount: 30000.0, paid: false, paymentType: "installment", installmentMonths: 6 },
+    { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment", installmentMonths: 3 },
   ]);
   
   const [filterSearch, setFilterSearch] = useState("");
@@ -59,12 +72,49 @@ export default function Home() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
   };
 
+  // Generate installment rows for a specific month
+  const generateInstallmentRows = (targetDate: Date): InstallmentRow[] => {
+    const rows: InstallmentRow[] = [];
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth();
+
+    expenses.forEach(exp => {
+      if (exp.paymentType === "installment" && exp.installmentMonths) {
+        const startDate = new Date(exp.date);
+        const startYear = startDate.getFullYear();
+        const startMonth = startDate.getMonth();
+
+        // Calculate which month this installment is for
+        for (let i = 0; i < exp.installmentMonths; i++) {
+          const monthDate = new Date(startYear, startMonth + i, 1);
+          
+          if (monthDate.getFullYear() === targetYear && monthDate.getMonth() === targetMonth) {
+            rows.push({
+              id: `${exp.id}-inst-${i}`,
+              item: exp.item,
+              category: exp.category,
+              monthlyAmount: exp.amount / exp.installmentMonths,
+              currentMonth: i + 1,
+              totalMonths: exp.installmentMonths,
+              paid: exp.paid,
+              originalDate: exp.date,
+            });
+          }
+        }
+      }
+    });
+
+    return rows;
+  };
+
   // Filter expenses by current month
   const getExpensesForMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
     return expenses.filter(exp => {
+      if (exp.paymentType === "installment") return false; // Exclude installments, they're handled separately
+      
       const expDate = new Date(exp.date);
       return expDate.getFullYear() === year && expDate.getMonth() === month;
     });
@@ -141,9 +191,27 @@ export default function Home() {
 
   // Get expenses for current month
   const monthExpenses = getExpensesForMonth();
+  const installmentRows = generateInstallmentRows(currentDate);
+
+  // Combine both types for display
+  const allRowsForMonth = [
+    ...monthExpenses.map(exp => ({
+      ...exp,
+      isInstallment: false,
+      monthlyAmount: exp.amount,
+      currentMonth: 0,
+      totalMonths: 0,
+    })),
+    ...installmentRows.map(row => ({
+      ...row,
+      isInstallment: true,
+      paid: row.paid,
+      amount: row.monthlyAmount,
+    })),
+  ];
 
   // Filter and sort expenses
-  let filteredExpenses = monthExpenses.filter(exp => {
+  let filteredExpenses = allRowsForMonth.filter(exp => {
     const matchesSearch = exp.item.toLowerCase().includes(filterSearch.toLowerCase());
     const matchesStatus = filterStatus === "all" || (filterStatus === "paid" ? exp.paid : !exp.paid);
     const matchesCategory = filterCategory === "all" || exp.category === filterCategory;
@@ -151,24 +219,32 @@ export default function Home() {
   });
 
   if (sortData === "date-asc") {
-    filteredExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    filteredExpenses.sort((a, b) => {
+      const dateA = new Date(('originalDate' in a ? (a as any).originalDate : (a as any).date) || (a as any).date);
+      const dateB = new Date(('originalDate' in b ? (b as any).originalDate : (b as any).date) || (b as any).date);
+      return dateA.getTime() - dateB.getTime();
+    });
   } else if (sortData === "date-desc") {
-    filteredExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    filteredExpenses.sort((a, b) => {
+      const dateA = new Date(('originalDate' in a ? (a as any).originalDate : (a as any).date) || (a as any).date);
+      const dateB = new Date(('originalDate' in b ? (b as any).originalDate : (b as any).date) || (b as any).date);
+      return dateB.getTime() - dateA.getTime();
+    });
   } else if (sortData === "amount-desc") {
-    filteredExpenses.sort((a, b) => b.amount - a.amount);
+    filteredExpenses.sort((a, b) => (b.monthlyAmount || b.amount) - (a.monthlyAmount || a.amount));
   } else if (sortData === "amount-asc") {
-    filteredExpenses.sort((a, b) => a.amount - b.amount);
+    filteredExpenses.sort((a, b) => (a.monthlyAmount || a.amount) - (b.monthlyAmount || b.amount));
   }
 
   // Calculate summaries for current month
-  const totalExpense = monthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const paidExpense = monthExpenses.filter(exp => exp.paid).reduce((sum, exp) => sum + exp.amount, 0);
+  const totalExpense = allRowsForMonth.reduce((sum, exp) => sum + (exp.monthlyAmount || exp.amount), 0);
+  const paidExpense = allRowsForMonth.filter(exp => exp.paid).reduce((sum, exp) => sum + (exp.monthlyAmount || exp.amount), 0);
   const pendingExpense = totalExpense - paidExpense;
 
   // Chart data for current month
   const categoryTotals: Record<string, number> = {};
-  monthExpenses.forEach(exp => {
-    categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
+  allRowsForMonth.forEach(exp => {
+    categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + (exp.monthlyAmount || exp.amount);
   });
 
   const chartData = {
@@ -418,35 +494,52 @@ export default function Home() {
                             type="checkbox"
                             checked={exp.paid}
                             onChange={() => {
-                              setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
+                              if (exp.isInstallment) {
+                                // For installments, mark the original expense as paid
+                                const originalId = exp.id.split('-inst-')[0];
+                                setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
+                              } else {
+                                setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
+                              }
                             }}
                             className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
                           />
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{exp.date}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{('originalDate' in exp ? (exp as any).originalDate : (exp as any).date) || (exp as any).date}</td>
                         <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
                         <td className="px-6 py-4 text-sm text-slate-600">{exp.category}</td>
                         <td className="px-6 py-4 text-right font-bold text-slate-900">
-                          ฿{exp.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                          {exp.paymentType === "installment" && <span className="text-xs text-slate-500 block">({exp.installmentMonths} เดือน)</span>}
+                          ฿{(exp.monthlyAmount || exp.amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                          {exp.isInstallment && (
+                            <span className="text-xs text-slate-500 block">
+                              งวด {exp.currentMonth}/{exp.totalMonths}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-center flex gap-2 justify-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
-                            onClick={() => handleEdit(exp)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
-                            onClick={() => handleDelete(exp.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {!exp.isInstallment && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                                onClick={() => handleEdit(exp as Expense)}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                                onClick={() => handleDelete(exp.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                          {exp.isInstallment && (
+                            <span className="text-xs text-slate-400">ไม่สามารถแก้ไข</span>
+                          )}
                         </td>
                       </tr>
                     ))
