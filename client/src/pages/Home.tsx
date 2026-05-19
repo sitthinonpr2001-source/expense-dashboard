@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +19,8 @@ interface Expense {
   paymentType: "full" | "installment";
   installmentMonths?: number;
   amountType?: "total" | "monthly";
+  isRecurring?: boolean;
+  recurringId?: string;
 }
 
 interface InstallmentRow {
@@ -38,6 +40,15 @@ interface CategoryColor {
   color: string;
 }
 
+interface RecurringExpense {
+  id: string;
+  item: string;
+  category: string;
+  amount: number;
+  recurringDay: number;
+  isActive: boolean;
+}
+
 const DEFAULT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
 
 export default function Home() {
@@ -52,7 +63,12 @@ export default function Home() {
     { id: "7", date: "2026-05-01", item: "ซื้อโน้ตบุ๊ก", category: "อุปกรณ์", amount: 30000.0, paid: false, paymentType: "installment", installmentMonths: 6, amountType: "total" },
     { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment", installmentMonths: 3, amountType: "total" },
   ]);
-  
+
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([
+    { id: "r1", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000, recurringDay: 20, isActive: true },
+    { id: "r2", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, recurringDay: 18, isActive: true },
+  ]);
+
   const [categoryColors, setCategoryColors] = useState<CategoryColor[]>([
     { category: "ยูทิลิตี้", color: "#6366f1" },
     { category: "ความบันเทิง", color: "#10b981" },
@@ -68,8 +84,9 @@ export default function Home() {
   const [sortData, setSortData] = useState("date-desc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showColorEditor, setShowColorEditor] = useState(false);
+  const [showRecurringForm, setShowRecurringForm] = useState(false);
+  const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
 
-  // Form state
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     item: "",
@@ -80,20 +97,26 @@ export default function Home() {
     amountType: "total" as "total" | "monthly",
   });
 
+  const [recurringFormData, setRecurringFormData] = useState({
+    item: "",
+    category: "",
+    amount: "",
+    recurringDay: "1",
+  });
+
   const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", 
                       "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
   const monthDisplay = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear() + 543}`;
 
-  // Get all categories
-  const allCategories = Array.from(new Set(expenses.map(e => e.category)));
+  const allCategories = Array.from(new Set([
+    ...expenses.map(e => e.category),
+    ...recurringExpenses.map(r => r.category)
+  ]));
 
-  // Get color for category
   const getCategoryColor = (category: string): string => {
     const found = categoryColors.find(cc => cc.category === category);
     if (found) return found.color;
-    
-    // Auto-assign color if not found
     const newColor = DEFAULT_COLORS[categoryColors.length % DEFAULT_COLORS.length];
     setCategoryColors([...categoryColors, { category, color: newColor }]);
     return newColor;
@@ -109,7 +132,6 @@ export default function Home() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
   };
 
-  // Generate installment rows for a specific month
   const generateInstallmentRows = (targetDate: Date): InstallmentRow[] => {
     const rows: InstallmentRow[] = [];
     const targetYear = targetDate.getFullYear();
@@ -148,20 +170,33 @@ export default function Home() {
     return rows;
   };
 
-  // Filter expenses by current month
   const getExpensesForMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
-    return expenses.filter(exp => {
+    const monthExpenses = expenses.filter(exp => {
       if (exp.paymentType === "installment") return false;
-      
       const expDate = new Date(exp.date);
       return expDate.getFullYear() === year && expDate.getMonth() === month;
     });
+
+    const recurringForMonth = recurringExpenses
+      .filter(r => r.isActive)
+      .map(r => ({
+        id: `${r.id}-${year}-${month}`,
+        date: new Date(year, month, r.recurringDay).toISOString().split('T')[0],
+        item: r.item,
+        category: r.category,
+        amount: r.amount,
+        paid: false,
+        paymentType: "full" as const,
+        isRecurring: true,
+        recurringId: r.id,
+      }));
+
+    return [...monthExpenses, ...recurringForMonth];
   };
 
-  // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -200,7 +235,6 @@ export default function Home() {
       };
       setExpenses([newExpense, ...expenses]);
       
-      // Auto-assign color if category is new
       if (!categoryColors.find(cc => cc.category === formData.category)) {
         getCategoryColor(formData.category);
       }
@@ -243,15 +277,74 @@ export default function Home() {
     }
   };
 
-  // Get expenses for current month
+  const handleAddRecurring = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!recurringFormData.item || !recurringFormData.category || !recurringFormData.amount) {
+      alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+      return;
+    }
+
+    if (editingRecurringId) {
+      setRecurringExpenses(recurringExpenses.map(r => 
+        r.id === editingRecurringId
+          ? {
+              ...r,
+              item: recurringFormData.item,
+              category: recurringFormData.category,
+              amount: parseFloat(recurringFormData.amount),
+              recurringDay: parseInt(recurringFormData.recurringDay),
+            }
+          : r
+      ));
+      setEditingRecurringId(null);
+    } else {
+      const newRecurring: RecurringExpense = {
+        id: Date.now().toString(),
+        item: recurringFormData.item,
+        category: recurringFormData.category,
+        amount: parseFloat(recurringFormData.amount),
+        recurringDay: parseInt(recurringFormData.recurringDay),
+        isActive: true,
+      };
+      setRecurringExpenses([...recurringExpenses, newRecurring]);
+    }
+
+    setRecurringFormData({ item: "", category: "", amount: "", recurringDay: "1" });
+    setShowRecurringForm(false);
+  };
+
+  const handleEditRecurring = (recurring: RecurringExpense) => {
+    setRecurringFormData({
+      item: recurring.item,
+      category: recurring.category,
+      amount: recurring.amount.toString(),
+      recurringDay: recurring.recurringDay.toString(),
+    });
+    setEditingRecurringId(recurring.id);
+    setShowRecurringForm(true);
+  };
+
+  const handleDeleteRecurring = (id: string) => {
+    if (confirm("ยืนยันการลบรายจ่ายประจำเดือนนี้?")) {
+      setRecurringExpenses(recurringExpenses.filter(r => r.id !== id));
+    }
+  };
+
+  const handleToggleRecurring = (id: string) => {
+    setRecurringExpenses(recurringExpenses.map(r => 
+      r.id === id ? { ...r, isActive: !r.isActive } : r
+    ));
+  };
+
   const monthExpenses = getExpensesForMonth();
   const installmentRows = generateInstallmentRows(currentDate);
 
-  // Combine both types for display
   const allRowsForMonth = [
     ...monthExpenses.map(exp => ({
       ...exp,
       isInstallment: false,
+      isRecurring: exp.isRecurring || false,
       monthlyAmount: exp.amount,
       currentMonth: 0,
       totalMonths: 0,
@@ -260,12 +353,12 @@ export default function Home() {
     ...installmentRows.map(row => ({
       ...row,
       isInstallment: true,
+      isRecurring: false,
       paid: row.paid,
       amount: row.monthlyAmount,
     })),
   ];
 
-  // Filter and sort expenses
   let filteredExpenses = allRowsForMonth.filter(exp => {
     const matchesSearch = exp.item.toLowerCase().includes(filterSearch.toLowerCase());
     const matchesStatus = filterStatus === "all" || (filterStatus === "paid" ? exp.paid : !exp.paid);
@@ -291,12 +384,10 @@ export default function Home() {
     filteredExpenses.sort((a, b) => (a.monthlyAmount || a.amount) - (b.monthlyAmount || b.amount));
   }
 
-  // Calculate summaries for current month
   const totalExpense = allRowsForMonth.reduce((sum, exp) => sum + (exp.monthlyAmount || exp.amount), 0);
   const paidExpense = allRowsForMonth.filter(exp => exp.paid).reduce((sum, exp) => sum + (exp.monthlyAmount || exp.amount), 0);
   const pendingExpense = totalExpense - paidExpense;
 
-  // Chart data for current month
   const categoryTotals: Record<string, number> = {};
   allRowsForMonth.forEach(exp => {
     categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + (exp.monthlyAmount || exp.amount);
@@ -321,7 +412,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -338,9 +428,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Time Selector */}
         <div className="flex items-center justify-center gap-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <Button variant="ghost" size="icon" onClick={() => changeMonth(-1)} className="hover:bg-slate-100">
             <ChevronLeft className="w-5 h-5" />
@@ -351,7 +439,6 @@ export default function Home() {
           </Button>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 border-l-4 border-l-indigo-500 bg-white">
             <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">ยอดรวมเดือนนี้</p>
@@ -367,7 +454,6 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* Form Card */}
         <Card className="p-8 bg-white">
           <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
             <span className="text-indigo-500">+</span>
@@ -488,9 +574,7 @@ export default function Home() {
           </form>
         </Card>
 
-        {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Chart, Percentage & Color Editor */}
           <div className="space-y-4">
             <Card className="p-6 bg-white">
               <h3 className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-widest">สัดส่วนรายจ่าย</h3>
@@ -521,7 +605,6 @@ export default function Home() {
               </div>
             </Card>
 
-            {/* Color Editor & Legend */}
             <Card className="p-6 bg-white">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -567,9 +650,7 @@ export default function Home() {
             </Card>
           </div>
 
-          {/* Table */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Percentage Breakdown */}
             {Object.keys(categoryTotals).length > 0 && (
               <Card className="p-6 bg-white">
                 <h3 className="text-sm font-semibold text-slate-900 mb-4">รายละเอียดเปอร์เซ็นต์</h3>
@@ -593,145 +674,282 @@ export default function Home() {
               </Card>
             )}
 
-            {/* Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-            {/* Filters */}
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-4 items-center justify-between">
-              <div className="flex items-center gap-3 flex-1 min-w-[200px]">
-                <Input
-                  placeholder="ค้นหารายการ..."
-                  value={filterSearch}
-                  onChange={(e) => setFilterSearch(e.target.value)}
-                />
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-4 items-center justify-between">
+                <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+                  <Input
+                    placeholder="ค้นหารายการ..."
+                    value={filterSearch}
+                    onChange={(e) => setFilterSearch(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">ทุกสถานะ</SelectItem>
+                      <SelectItem value="paid">จ่ายแล้ว</SelectItem>
+                      <SelectItem value="pending">ค้างชำระ</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
+                      {allCategories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortData} onValueChange={setSortData}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date-desc">ใหม่สุด</SelectItem>
+                      <SelectItem value="date-asc">เก่าสุด</SelectItem>
+                      <SelectItem value="amount-desc">แพงสุด</SelectItem>
+                      <SelectItem value="amount-asc">ถูกสุด</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">ทุกสถานะ</SelectItem>
-                    <SelectItem value="paid">จ่ายแล้ว</SelectItem>
-                    <SelectItem value="pending">ค้างชำระ</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
-                    {allCategories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={sortData} onValueChange={setSortData}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date-desc">ใหม่สุด</SelectItem>
-                    <SelectItem value="date-asc">เก่าสุด</SelectItem>
-                    <SelectItem value="amount-desc">แพงสุด</SelectItem>
-                    <SelectItem value="amount-asc">ถูกสุด</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto max-h-[400px]">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">✓</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">วันที่</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">รายการ</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">หมวดหมู่</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">จำนวนเงิน</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredExpenses.length > 0 ? (
-                    filteredExpenses.map(exp => {
-                      const categoryColor = getCategoryColor(exp.category);
-                      return (
-                        <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <input
-                              type="checkbox"
-                              checked={exp.paid}
-                              onChange={() => {
-                                if (exp.isInstallment) {
-                                  const originalId = (exp as any).expenseId;
-                                  setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
-                                } else {
-                                  setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
-                                }
-                              }}
-                              className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{('originalDate' in exp ? (exp as any).originalDate : (exp as any).date) || (exp as any).date}</td>
-                          <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full border border-slate-200"
-                                style={{ backgroundColor: categoryColor }}
-                              />
-                              <span className="text-sm text-slate-600">{exp.category}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-right font-bold text-slate-900">
-                            ฿{(exp.monthlyAmount || exp.amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                            {exp.isInstallment && (
-                              <span className="text-xs text-slate-500 block">
-                                งวด {(exp as any).currentMonth}/{(exp as any).totalMonths}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-center flex gap-2 justify-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
-                              onClick={() => {
-                                if (exp.isInstallment) {
-                                  handleEditInstallment(exp as any);
-                                } else {
-                                  handleEdit(exp as Expense);
-                                }
-                              }}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
-                              onClick={() => handleDelete(exp.isInstallment ? (exp as any).expenseId : exp.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
+              <div className="overflow-x-auto max-h-[400px]">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 sticky top-0 z-10">
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                        ไม่มีข้อมูลในเดือนนี้
-                      </td>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">✓</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">วันที่</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">รายการ</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">หมวดหมู่</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">จำนวนเงิน</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">จัดการ</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredExpenses.length > 0 ? (
+                      filteredExpenses.map(exp => {
+                        const categoryColor = getCategoryColor(exp.category);
+                        return (
+                          <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4">
+                              {!(exp as any).isRecurring && (
+                                <input
+                                  type="checkbox"
+                                  checked={exp.paid}
+                                  onChange={() => {
+                                    if (exp.isInstallment) {
+                                      const originalId = (exp as any).expenseId;
+                                      setExpenses(expenses.map(e => e.id === originalId ? { ...e, paid: !e.paid } : e));
+                                    } else {
+                                      setExpenses(expenses.map(e => e.id === exp.id ? { ...e, paid: !e.paid } : e));
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                                />
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-slate-600">{('originalDate' in exp ? (exp as any).originalDate : (exp as any).date) || (exp as any).date}</td>
+                            <td className="px-6 py-4 font-medium text-slate-900">{exp.item}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-3 h-3 rounded-full border border-slate-200"
+                                  style={{ backgroundColor: categoryColor }}
+                                />
+                                <span className="text-sm text-slate-600">{exp.category}</span>
+                                {(exp as any).isRecurring && (
+                                  <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">ประจำเดือน</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-right font-bold text-slate-900">
+                              <div>
+                                ฿{(exp.monthlyAmount || exp.amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                              </div>
+                              {exp.isInstallment && (
+                                <span className="text-xs text-slate-500 block">
+                                  งวด {(exp as any).currentMonth}/{(exp as any).totalMonths}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center flex gap-2 justify-center">
+                              {!(exp as any).isRecurring && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                                  onClick={() => {
+                                    if (exp.isInstallment) {
+                                      handleEditInstallment(exp as any);
+                                    } else {
+                                      handleEdit(exp as Expense);
+                                    }
+                                  }}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {!(exp as any).isRecurring && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                                  onClick={() => {
+                                    if (exp.isInstallment) {
+                                      handleDelete((exp as any).expenseId);
+                                    } else {
+                                      handleDelete(exp.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {(exp as any).isRecurring && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                                  onClick={() => handleDeleteRecurring((exp as any).recurringId)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                          ไม่มีข้อมูลในเดือนนี้
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">รายจ่ายประจำเดือน</h2>
+            <Button
+              onClick={() => {
+                setShowRecurringForm(!showRecurringForm);
+                setEditingRecurringId(null);
+                setRecurringFormData({ item: "", category: "", amount: "", recurringDay: "1" });
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {showRecurringForm ? "ยกเลิก" : "+ เพิ่มรายจ่ายประจำเดือน"}
+            </Button>
           </div>
+
+          {showRecurringForm && (
+            <Card className="p-6 bg-white">
+              <h3 className="text-sm font-semibold mb-4">
+                {editingRecurringId ? "แก้ไขรายจ่ายประจำเดือน" : "เพิ่มรายจ่ายประจำเดือนใหม่"}
+              </h3>
+              <form onSubmit={handleAddRecurring} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">รายการ</label>
+                  <Input
+                    type="text"
+                    placeholder="เช่น ค่าเช่า"
+                    value={recurringFormData.item}
+                    onChange={(e) => setRecurringFormData({ ...recurringFormData, item: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">หมวดหมู่</label>
+                  <Input
+                    type="text"
+                    placeholder="หมวดหมู่"
+                    value={recurringFormData.category}
+                    onChange={(e) => setRecurringFormData({ ...recurringFormData, category: e.target.value })}
+                    list="categoryList"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">จำนวนเงิน</label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    value={recurringFormData.amount}
+                    onChange={(e) => setRecurringFormData({ ...recurringFormData, amount: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">วันที่ในเดือน</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={recurringFormData.recurringDay}
+                    onChange={(e) => setRecurringFormData({ ...recurringFormData, recurringDay: e.target.value })}
+                  />
+                </div>
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
+                  {editingRecurringId ? "อัปเดต" : "บันทึก"}
+                </Button>
+              </form>
+            </Card>
+          )}
+
+          {recurringExpenses.length > 0 && (
+            <Card className="p-6 bg-white">
+              <div className="space-y-3">
+                {recurringExpenses.map(recurring => (
+                  <div key={recurring.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">{recurring.item}</p>
+                      <p className="text-sm text-slate-500">{recurring.category} • วันที่ {recurring.recurringDay} ของเดือน</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="font-bold text-slate-900">฿{recurring.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</p>
+                      <input
+                        type="checkbox"
+                        checked={recurring.isActive}
+                        onChange={() => handleToggleRecurring(recurring.id)}
+                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                        title="เปิด/ปิด"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600"
+                        onClick={() => handleEditRecurring(recurring)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600"
+                        onClick={() => handleDeleteRecurring(recurring.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </main>
     </div>
