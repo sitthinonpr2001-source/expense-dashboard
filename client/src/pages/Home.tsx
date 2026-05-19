@@ -303,9 +303,14 @@ export default function Home() {
   });
 
   const chartColors = Object.keys(categoryTotals).map(cat => getCategoryColor(cat));
+  const chartTotal = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
+  const chartLabelsWithPercent = Object.keys(categoryTotals).map(cat => {
+    const percent = ((categoryTotals[cat] / chartTotal) * 100).toFixed(1);
+    return `${cat} ${percent}%`;
+  });
 
   const chartData = {
-    labels: Object.keys(categoryTotals),
+    labels: chartLabelsWithPercent,
     datasets: [{
       data: Object.values(categoryTotals),
       backgroundColor: chartColors,
