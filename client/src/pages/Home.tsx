@@ -54,39 +54,67 @@ interface RecurringExpense {
   paidMonths?: Record<string, boolean>;
 }
 
-const DEFAULT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
-
 interface HomeProps {
   onDataChange?: (expenses: Expense[], recurringExpenses: RecurringExpense[]) => void;
 }
 
+const DEFAULT_EXPENSES = [
+  { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full" as const, amountType: "total" as const },
+  { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false, paymentType: "full" as const, amountType: "total" as const },
+  { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true, paymentType: "full" as const, amountType: "total" as const },
+  { id: "4", date: "2026-04-20", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000.0, paid: true, paymentType: "full" as const, amountType: "total" as const },
+  { id: "5", date: "2026-04-15", item: "ค่าอาหาร", category: "อาหาร", amount: 1200.0, paid: true, paymentType: "full" as const, amountType: "total" as const },
+  { id: "6", date: "2026-04-10", item: "ค่าเดินทาง", category: "เดินทาง", amount: 500.0, paid: false, paymentType: "full" as const, amountType: "total" as const },
+  { id: "7", date: "2026-05-01", item: "ซื้อโน้ตบุ๊ก", category: "อุปกรณ์", amount: 30000.0, paid: false, paymentType: "installment" as const, installmentMonths: 6, amountType: "total" as const },
+  { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment" as const, installmentMonths: 3, amountType: "total" as const },
+];
+
+const DEFAULT_RECURRING = [
+  { id: "r1", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000, recurringDay: 20, isActive: true, startDate: "2026-01-01", paidMonths: {} },
+  { id: "r2", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, recurringDay: 18, isActive: true, startDate: "2026-01-01", paidMonths: {} },
+];
+
+const DEFAULT_COLOR_PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+const DEFAULT_COLORS = [
+  { category: "ยูทิลิตี้", color: "#6366f1" },
+  { category: "ความบันเทิง", color: "#10b981" },
+  { category: "ที่พัก", color: "#f59e0b" },
+  { category: "อาหาร", color: "#ef4444" },
+  { category: "เดินทาง", color: "#8b5cf6" },
+  { category: "อุปกรณ์", color: "#ec4899" },
+];
+
 export default function Home({ onDataChange }: HomeProps) {
   const [, setLocation] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [expenses, setExpenses] = useState<Expense[]>([
-    { id: "1", date: "2026-05-18", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, paid: true, paymentType: "full", amountType: "total" },
-    { id: "2", date: "2026-05-15", item: "ค่าไฟเดือน เม.ย.", category: "ยูทิลิตี้", amount: 2450.0, paid: false, paymentType: "full", amountType: "total" },
-    { id: "3", date: "2026-05-10", item: "สมาชิก Netflix", category: "ความบันเทิง", amount: 419.0, paid: true, paymentType: "full", amountType: "total" },
-    { id: "4", date: "2026-04-20", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000.0, paid: true, paymentType: "full", amountType: "total" },
-    { id: "5", date: "2026-04-15", item: "ค่าอาหาร", category: "อาหาร", amount: 1200.0, paid: true, paymentType: "full", amountType: "total" },
-    { id: "6", date: "2026-04-10", item: "ค่าเดินทาง", category: "เดินทาง", amount: 500.0, paid: false, paymentType: "full", amountType: "total" },
-    { id: "7", date: "2026-05-01", item: "ซื้อโน้ตบุ๊ก", category: "อุปกรณ์", amount: 30000.0, paid: false, paymentType: "installment", installmentMonths: 6, amountType: "total" },
-    { id: "8", date: "2026-04-01", item: "ซื้อโทรศัพท์", category: "อุปกรณ์", amount: 15000.0, paid: true, paymentType: "installment", installmentMonths: 3, amountType: "total" },
-  ]);
+  
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    try {
+      const saved = localStorage.getItem('expenses');
+      return saved ? JSON.parse(saved) : DEFAULT_EXPENSES;
+    } catch {
+      return DEFAULT_EXPENSES;
+    }
+  });
 
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([
-    { id: "r1", item: "ค่าเช่าห้อง", category: "ที่พัก", amount: 5000, recurringDay: 20, isActive: true, startDate: "2026-01-01", paidMonths: {} },
-    { id: "r2", item: "ค่าอินเทอร์เน็ต", category: "ยูทิลิตี้", amount: 640.93, recurringDay: 18, isActive: true, startDate: "2026-01-01", paidMonths: {} },
-  ]);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() => {
+    try {
+      const saved = localStorage.getItem('recurringExpenses');
+      return saved ? JSON.parse(saved) : DEFAULT_RECURRING;
+    } catch {
+      return DEFAULT_RECURRING;
+    }
+  });
 
-  const [categoryColors, setCategoryColors] = useState<CategoryColor[]>([
-    { category: "ยูทิลิตี้", color: "#6366f1" },
-    { category: "ความบันเทิง", color: "#10b981" },
-    { category: "ที่พัก", color: "#f59e0b" },
-    { category: "อาหาร", color: "#ef4444" },
-    { category: "เดินทาง", color: "#8b5cf6" },
-    { category: "อุปกรณ์", color: "#ec4899" },
-  ]);
+  const [categoryColors, setCategoryColors] = useState<CategoryColor[]>(() => {
+    try {
+      const saved = localStorage.getItem('categoryColors');
+      return saved ? JSON.parse(saved) : DEFAULT_COLORS;
+    } catch {
+      return DEFAULT_COLORS;
+    }
+  });
 
   const [filterSearch, setFilterSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -129,7 +157,7 @@ export default function Home({ onDataChange }: HomeProps) {
   const getCategoryColor = (category: string): string => {
     const found = categoryColors.find(cc => cc.category === category);
     if (found) return found.color;
-    const newColor = DEFAULT_COLORS[categoryColors.length % DEFAULT_COLORS.length];
+    const newColor = DEFAULT_COLOR_PALETTE[categoryColors.length % DEFAULT_COLOR_PALETTE.length];
     setCategoryColors([...categoryColors, { category, color: newColor }]);
     return newColor;
   };
@@ -365,9 +393,21 @@ export default function Home({ onDataChange }: HomeProps) {
     }
   };
 
+  // Save expenses to localStorage
   React.useEffect(() => {
+    localStorage.setItem('expenses', JSON.stringify(expenses));
     if (onDataChange) onDataChange(expenses, recurringExpenses);
-  }, [expenses, recurringExpenses, onDataChange]);
+  }, [expenses, onDataChange, recurringExpenses]);
+
+  // Save recurring expenses to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('recurringExpenses', JSON.stringify(recurringExpenses));
+  }, [recurringExpenses]);
+
+  // Save category colors to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('categoryColors', JSON.stringify(categoryColors));
+  }, [categoryColors]);
 
   const handleToggleRecurring = (id: string) => {
     setRecurringExpenses(recurringExpenses.map(r => 
