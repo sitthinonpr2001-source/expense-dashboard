@@ -1,0 +1,35 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [],
+  "dev_command": "pnpm run dev",
+  "env_vars": {},
+  "experiments": null,
+  "git_remote": {
+    "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663674219240/FVayPMAfF6q7cBJUUvbfsC",
+    "access_key_id": "ASIAZV3A2ECZNNG36V3V",
+    "secret_access_key": "Yv+jmmUaxCKFkJbofG+PHnXL+tcQc07VbElZeo5f",
+    "session_token": "IQoJb3JpZ2luX2VjEAYaCXVzLWVhc3QtMSJHMEUCIQCFfpUN2UNj3KC3rIhTMSDzng8RpUa6Ttdnof/2KWgsfAIgWamioVpwKUoiiy4UC1aeyJfOMj2aG79ZVep1uGuc87Aq/wMIz///////////ARAEGgw2NjUzODYwOTg4NjYiDPS4+xZ8SZ8a0NlOtCrTA4cOTz+WrJxALwjIkveFbSfLoiD2u7zao2eRxt2lTkrRMgcDvbnVzJXh5KhpZmDmeEpbBCeuBpNL6MP6oyfiAWYBBMLpHHDYLlJIU2bPEHX9AbJ0bhtLFFExnnrmtPL6LaIRP7maYalnMs903TFtk/fPEyR+fP4/0V6G24zBw2SaO5kryj7JgAeZmfqnVKJzzKzebAYOY8wvUap8/T8l3J6VDeyVIXJb3J0nV87+PqMcBur9YQjVvKEbEo687UlVy3U7WMB/wmNQNBaI8dwIKh+ZEWlNcvi2ZmT6Zn1dOWVmwfxGDAp1PmKj8jAIxaxsVTpXm2OoxoHN/ddr7BkxXtFwESa7NwLXQTIGUAEbKhlNoZWsd+tbgDfsP5lvIhDjsvaLwU4IJu66Ev1NJ4LmnnQlojGmDVcERnUMf5vUVq6Nh3Kn50fZV0u1DBWNcr3/VWDxKMoROmQgqnYhQGWNqL6uLF4xaq4530cH44QTEc+Sr+rAejHBeRy+woeqA2BI8KO92DmLLq7k6C2ChLQGYEmx5pG2hBViH8JZON9FJnn1JUPSh5TWOrXY/1WI2Zu8rd/VrdH3FPUlv14lCOszvdVFZ1iKM7Igu7ulULEBmKWSD7PaMOLur9AGOp0BkxwNe3joosVJ3vyNwxef6KS45JDsQOqAQiFF8ES0WyHbWpP7wwQTlkZzfMFQ8JYYcMyEnvi3LFcBgUQqgXoQcSuF9f07KxOCcR79FreWumx6ypB3Id8kFYxzH9wiK69ieQ5voJKfRqwiE7kgmzwbO8Y1PpsXxrZ/SjprWZ6m6gUSNPQ/YHA4rw2uIQhBD8Kwz6QVXivxQSczNTx6/Q==",
+    "expiration": "2026-05-19T17:38:42.000Z"
+  },
+  "name": "expense-dashboard",
+  "path": "/home/ubuntu/expense-dashboard",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "RFA4QiyyUa5x5W5J9uMXMg",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "JWT_SECRET": "75zwsjdGodwp8M5g7EH9B7",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "Sitthinon Promyo",
+    "OWNER_OPEN_ID": "RsvogjDZRuHJEho49yqjAh",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "510d3b67-45c3-49da-91c5-46471c9c9a6a",
+    "VITE_APP_ID": "FVayPMAfF6q7cBJUUvbfsC",
+    "VITE_APP_LOGO": "",
+    "VITE_APP_TITLE": "Expense Dashboard",
+    "VITE_FRONTEND_FORGE_API_KEY": "aEih3FE3sDLDhgFHKe3Mwb",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "web-static",
+  "test_command": "pnpm test"
+}
