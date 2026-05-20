@@ -124,6 +124,9 @@ export default function Home({ onDataChange }: HomeProps) {
   const [showColorEditor, setShowColorEditor] = useState(false);
   const [showRecurringForm, setShowRecurringForm] = useState(false);
   const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryName, setEditingCategoryName] = useState<string | null>(null);
+  const [editingCategoryNewName, setEditingCategoryNewName] = useState("");
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -707,6 +710,30 @@ export default function Home({ onDataChange }: HomeProps) {
               </div>
               
               <div className="space-y-3">
+                {showColorEditor && (
+                  <div className="flex gap-2 mb-4 pb-4 border-b border-slate-200">
+                    <Input
+                      type="text"
+                      placeholder="ชื่อหมวดหมู่ใหม่"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="flex-1 text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        if (newCategoryName.trim() && !categoryColors.find(c => c.category === newCategoryName)) {
+                          const newColor = DEFAULT_COLOR_PALETTE[categoryColors.length % DEFAULT_COLOR_PALETTE.length];
+                          setCategoryColors([...categoryColors, { category: newCategoryName, color: newColor }]);
+                          setNewCategoryName("");
+                        }
+                      }}
+                    >
+                      เพิ่ม
+                    </Button>
+                  </div>
+                )}
                 {categoryColors.map(cc => (
                   <div key={cc.category} className="flex items-center gap-3">
                     {showColorEditor ? (
@@ -717,7 +744,73 @@ export default function Home({ onDataChange }: HomeProps) {
                           onChange={(e) => updateCategoryColor(cc.category, e.target.value)}
                           className="w-10 h-10 rounded cursor-pointer border border-slate-200"
                         />
-                        <span className="text-sm text-slate-700 flex-1">{cc.category}</span>
+                        {editingCategoryName === cc.category ? (
+                          <div className="flex-1 flex gap-2">
+                            <Input
+                              type="text"
+                              value={editingCategoryNewName}
+                              onChange={(e) => setEditingCategoryNewName(e.target.value)}
+                              className="flex-1 text-sm"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700"
+                              onClick={() => {
+                                if (editingCategoryNewName.trim() && editingCategoryNewName !== cc.category) {
+                                  setCategoryColors(categoryColors.map(c => 
+                                    c.category === cc.category ? { ...c, category: editingCategoryNewName } : c
+                                  ));
+                                  setExpenses(expenses.map(e => 
+                                    e.category === cc.category ? { ...e, category: editingCategoryNewName } : e
+                                  ));
+                                  setRecurringExpenses(recurringExpenses.map(r => 
+                                    r.category === cc.category ? { ...r, category: editingCategoryNewName } : r
+                                  ));
+                                }
+                                setEditingCategoryName(null);
+                                setEditingCategoryNewName("");
+                              }}
+                            >
+                              บันทึก
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingCategoryName(null);
+                                setEditingCategoryNewName("");
+                              }}
+                            >
+                              ยกเลิก
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-sm text-slate-700 flex-1">{cc.category}</span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 hover:bg-amber-50 hover:text-amber-600"
+                              onClick={() => {
+                                setEditingCategoryName(cc.category);
+                                setEditingCategoryNewName(cc.category);
+                              }}
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 hover:bg-rose-50 hover:text-rose-600"
+                              onClick={() => {
+                                setCategoryColors(categoryColors.filter(c => c.category !== cc.category));
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
                         <span className="text-xs text-slate-400">{cc.color}</span>
                       </>
                     ) : (
